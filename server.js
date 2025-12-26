@@ -42,6 +42,13 @@ async function aranetGet(path, query = {}) {
   return response.json();
 }
 
+function getValueFromMap(map, rel) {
+  if (map !== undefined && map !== null) {
+    const item = map.find(item => item.rel === rel);
+    return item ? item.name : null;
+  }
+}
+
 // 1) Healthcheck
 app.get("/api/health", (req, res) => res.json({ ok: true }));
 
@@ -86,6 +93,34 @@ app.get("/api/aranet/alarms/actual", async (req, res) => {
     res.status(502).json({ error: error.message });
   }
 });
+
+// 6) Medidas
+app.get("/api/aranet/measurements", async (req, res) => {
+  try {
+    const data = await aranetGet("/api/v1/measurements/last", req.query);
+    const { readings, links } = data;
+    const { asset, metric, point, unit } = links;
+
+    let dataParsed = readings.map(reading => {
+      return {
+        value: reading.value,
+        nameMetric: getValueFromMap(metric, reading.metric),
+        unit: getValueFromMap(unit, reading.unit),
+      }
+    });
+    dataParsed = {
+      data: dataParsed,
+      asset: getValueFromMap(asset, readings[0].asset),
+      point: getValueFromMap(point, readings[0].point),
+      time: readings[0].time,
+    }
+
+    res.json(dataParsed);
+  } catch (error) {
+    res.status(502).json({ error: error.message });
+  }
+});
+
 
 app.listen(PORT, () => {
   console.log(`Backend listo en http://localhost:${PORT}`);
