@@ -88,7 +88,35 @@ app.get("/api/aranet/telemetry/history", async (req, res) => {
 app.get("/api/aranet/alarms/actual", async (req, res) => {
   try {
     const data = await aranetGet("/api/v1/alarms/actual", req.query);
-    res.json(data);
+
+    const { alarms, links } = data;
+    const { metric, rule, sensor, unit } = links;
+    let dataSensor = []
+    for (const sen of sensor){
+      const dataSensorTemp = await aranetGet(`/api/v1/sensors/sensor/${sen.rel}`);
+      let sensorReturn = {
+        rel: dataSensorTemp.sensor.id,
+        sensorId: dataSensorTemp.sensor.sensorId,
+        name: dataSensorTemp.sensor.name,
+      }
+      dataSensor.push(sensorReturn)
+    }
+    let dataParsed = alarms.map(alarm => {
+      return {
+        name: getValueFromMap(metric, alarm.metric),
+        value: alarm.value == null ? 0 : alarm.value,
+        worst: alarm.worst,
+        alarmed: alarm.alarmed,
+        resolved: alarm?.resolved,
+        unit: getValueFromMap(unit, alarm.unit),
+        rule: getValueFromMap(rule, alarm.rule),
+        sensor: getValueFromMap(dataSensor, alarm.sensor),
+        threshold: alarm?.threshold == "above" ? "Sobre el limite" : "Bajo el limite",
+        severity: alarm?.severity == 1 ? "Alta Gravedad" : "Baja Gravedad",
+      }
+    });
+
+    res.json(dataParsed);
   } catch (error) {
     res.status(502).json({ error: error.message });
   }
